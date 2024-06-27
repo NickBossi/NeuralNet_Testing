@@ -59,12 +59,12 @@ random_sample = torch.tensor([math.sin(number) for  number in numbers]).to(devic
 numbers1 = torch.tensor([sorted([random.uniform(0, 4*math.pi) for x in range(input_size)]) for y in range(num_samples)])
 #print(numbers1[:,0])
 
-input = numbers1.clone().detach().requires_grad_(True)
+input = numbers1
 response = torch.sin(input)
 
 class CustomDataset(Dataset):
     def __init__(self, input_tensor, output_tensor, transform = None):
-        self.input_tensor = input_tensor.squeeze(1)
+        self.input_tensor = input_tensor
         self.output_tensor = output_tensor
         self.mean = self.input_tensor.mean(dim = 0, keepdim = True)
         self.std = self.input_tensor.std(dim = 0, keepdim = True)
@@ -133,10 +133,9 @@ criterion = nn.MSELoss()
 optimizer = optim.SGD(net.parameters(), lr = 0.1)
 
 def train_one_epoch(epoch_index):
+    running_loss = 0 
+    last_loss = 0
     for i, data in enumerate(dataload):
-
-        running_loss = 0 
-        last_loss = 0
 
         input, response = data
         input = input.to(device)
@@ -147,7 +146,7 @@ def train_one_epoch(epoch_index):
         output = net(input).squeeze(1)
 
         loss = criterion(output, response)
-        loss.backward(retain_graph = True)
+        loss.backward()
 
         optimizer.step()
 
@@ -170,6 +169,7 @@ for epoch in range(10):
     net.train(True)
     avg_loss = train_one_epoch(epoch)   #gets loss associated with training epoch
 
+'''
 pred_input=input[0,:].to(device)
 pred_input = (pred_input- torch.mean(pred_input))/torch.std(pred_input)
 predictions = net(pred_input).cpu()
@@ -177,6 +177,7 @@ pred_input=pred_input.cpu().detach().numpy()
 plt.plot(pred_input, response[0,:].detach().numpy(), label = "actual", color = "blue", linestyle="-")
 plt.plot(pred_input, predictions.detach().numpy(), label = "predicted", color = "red", linestyle="-")
 plt.show()
+'''
 
 '''
 # Loss Function
