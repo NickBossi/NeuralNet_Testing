@@ -33,7 +33,7 @@ l2_list = np.linspace(0,0.5,20)
 
 # Dimensions of data
 input_size = 100
-num_samples = 400
+num_samples = 40
 
 numbers = sorted([random.uniform(0,4*math.pi) for x in range(input_size)])
 random_sample = torch.tensor([math.sin(number) for  number in numbers])
@@ -128,14 +128,14 @@ def train(model, device, train_loader, optimizer, epoch):
         loss.backward()
         optimizer.step()
 
-        train_loss += loss              #accumulates total loss
+        train_loss += loss.item()       #accumulates total loss
     train_loss = train_loss/(i+1)       #gets average loss over batches
     return train_loss                   #returns average loss
 
 ######################################## K fold cross validation ##################################################
 
-#sets number of epoch and best_v_loss which will be used to track which model gives best validation performance
-EPOCHS = 8
+# Sets number of epoch and best_v_loss which will be used to track which model gives best validation performance
+EPOCHS = 5
 best_v_loss = 1000000
 epoch_number = 0
 
@@ -143,12 +143,14 @@ k_folds = 9
 
 kf = KFold(n_splits=k_folds, shuffle = True)
 
-#Setting model and optimizer
+#Setting model
 model = Net().to(device)
 
-for i in l2_list:
+v_loss_matrix = np.zeros((len(l2_list), k_folds, EPOCHS))
 
-    optimizer = optim.Adam(model.parameters(), lr = learning_rate, weight_decay=i)
+for l2_idx in range(len(l2_list)):
+
+    optimizer = optim.Adam(model.parameters(), lr = learning_rate, weight_decay=l2_list[l2_idx])
 
     for fold, (train_idx,test_idx) in enumerate(kf.split(data)):
         print("++++++++++++++++++")
@@ -159,7 +161,7 @@ for i in l2_list:
 
         train_load = DataLoader(dataset=data,
                                 batch_size=batch_size,
-                                sampler = torch.utils.data.SubsetRandomSampler(test_idx))
+                                sampler = torch.utils.data.SubsetRandomSampler(train_idx))
         
         valid_load = DataLoader(dataset= data, 
                                 batch_size = batch_size,
@@ -190,6 +192,10 @@ for i in l2_list:
             avg_v_loss = running_vloss/(i+1)            #calculates average validation loss
             print('LOSS train {} valid {}'.format(avg_t_loss, avg_v_loss))            #outputs training vs validation loss
 
+            # Adding the validation loss of the l2, fold combination to our v_loss matrix after the final epoch
+            #if epoch+1 == EPOCHS:
+            v_loss_matrix[l2_idx, fold, epoch]=avg_v_loss
+
             # Checks to see if validation loss has improved and saves the model as the optimal model
             if avg_v_loss < best_v_loss:
                 best_v_loss = avg_v_loss
@@ -197,13 +203,26 @@ for i in l2_list:
                 #model_path = 'model_{}'.format(epoch_number+1)
                 #torch.save(model.state_dict(), model_path)
 
-pred_input = torch.tensor(numbers)
+# Calculating the average and std of validation losses for varying values of l2_regularisation
+v_loss_mean = np.mean(v_loss_matrix, axis = (1,2))              #averages over the fold and epochs
+print(v_loss_mean)
+v_loss_std = np.std(v_loss_matrix, axis = (1,2))
+v_upper = v_loss_mean+v_loss_std
+v_lower = v_loss_mean-v_loss_std
+
+plt.plot(l2_list, v_loss_mean, label = 'validation loss', color = 'red', linestyle = "-")
+plt.plot(l2_list, v_lower, label = 'lower std', color = 'blue', linestyle = ":")
+plt.plot(l2_list, v_upper, label = 'upper std', color = 'blue', linestyle = ":")
+plt.show()
+
+'''
+pred_input = torch.tensor(numbers).to(device)
 pred_input = (pred_input - torch.mean(pred_input))/torch.std(pred_input)
-prediction = optimal_model(torch.tensor(pred_input).to(device))
+prediction = optimal_model(pred_input).cpu().detach().numpy()
 
 plt.plot(numbers, random_sample, label = 'input', color = 'blue', linestyle = "-")
 
-plt.plot(numbers, prediction.cpu().detach().numpy(), label = 'output', color = 'red', linestyle = "-")
+plt.plot(numbers, prediction, label = 'output', color = 'red', linestyle = "-")
 plt.grid(True)
 plt.show()
-
+'''
